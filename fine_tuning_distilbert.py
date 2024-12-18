@@ -9,16 +9,12 @@ Original file is located at
 
 !pip install datasets evaluate transformers[sentencepiece]
 !pip install accelerate
-# To run the training on TPU, you will need to uncomment the following line:
-# !pip install cloud-tpu-client==0.10 torch==1.9.0 https://storage.googleapis.com/tpu-pytorch/wheels/torch_xla-1.9-cp37-cp37m-linux_x86_64.whl
 !apt install git-lfs
 
-"""You will need to setup git, adapt your email and name in the following cell."""
+"""Setup git"""
 
 !git config --global user.email "egbewaleyanmife@gmail.com"
 !git config --global user.name "Yanmi01"
-
-"""You will also need to be logged in to the Hugging Face Hub. Execute the following and enter your credentials."""
 
 from huggingface_hub import notebook_login
 
