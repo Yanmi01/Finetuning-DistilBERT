@@ -27,7 +27,6 @@ model = AutoModelForMaskedLM.from_pretrained(model_checkpoint)
 
 distilbert_num_parameters = model.num_parameters() / 1_000_000
 print(f"'>>> DistilBERT number of parameters: {round(distilbert_num_parameters)}M'")
-print(f"'>>> BERT number of parameters: 110M'")
 
 text = "This is a great [MASK]."
 
@@ -179,10 +178,6 @@ downsampled_dataset = lm_datasets["train"].train_test_split(
 )
 downsampled_dataset
 
-from huggingface_hub import notebook_login
-
-notebook_login()
-
 from transformers import TrainingArguments
 
 batch_size = 64
@@ -259,89 +254,6 @@ train_dataloader = DataLoader(
 eval_dataloader = DataLoader(
     eval_dataset, batch_size=batch_size, collate_fn=default_data_collator
 )
-
-from torch.optim import AdamW
-
-optimizer = AdamW(model.parameters(), lr=5e-5)
-
-from accelerate import Accelerator
-
-accelerator = Accelerator()
-model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
-    model, optimizer, train_dataloader, eval_dataloader
-)
-
-from transformers import get_scheduler
-
-num_train_epochs = 3
-num_update_steps_per_epoch = len(train_dataloader)
-num_training_steps = num_train_epochs * num_update_steps_per_epoch
-
-lr_scheduler = get_scheduler(
-    "linear",
-    optimizer=optimizer,
-    num_warmup_steps=0,
-    num_training_steps=num_training_steps,
-)
-
-from huggingface_hub import get_full_repo_name
-
-model_name = "distilbert-base-uncased-finetuned-imdb-accelerate"
-repo_name = get_full_repo_name(model_name)
-repo_name
-
-from huggingface_hub import Repository
-
-output_dir = model_name
-repo = Repository(output_dir, clone_from=repo_name)
-
-from tqdm.auto import tqdm
-import torch
-import math
-
-progress_bar = tqdm(range(num_training_steps))
-
-for epoch in range(num_train_epochs):
-    # Training
-    model.train()
-    for batch in train_dataloader:
-        outputs = model(**batch)
-        loss = outputs.loss
-        accelerator.backward(loss)
-
-        optimizer.step()
-        lr_scheduler.step()
-        optimizer.zero_grad()
-        progress_bar.update(1)
-
-    # Evaluation
-    model.eval()
-    losses = []
-    for step, batch in enumerate(eval_dataloader):
-        with torch.no_grad():
-            outputs = model(**batch)
-
-        loss = outputs.loss
-        losses.append(accelerator.gather(loss.repeat(batch_size)))
-
-    losses = torch.cat(losses)
-    losses = losses[: len(eval_dataset)]
-    try:
-        perplexity = math.exp(torch.mean(losses))
-    except OverflowError:
-        perplexity = float("inf")
-
-    print(f">>> Epoch {epoch}: Perplexity: {perplexity}")
-
-    # Save and upload
-    accelerator.wait_for_everyone()
-    unwrapped_model = accelerator.unwrap_model(model)
-    unwrapped_model.save_pretrained(output_dir, save_function=accelerator.save)
-    if accelerator.is_main_process:
-        tokenizer.save_pretrained(output_dir)
-        repo.push_to_hub(
-            commit_message=f"Training in progress epoch {epoch}", blocking=False
-        )
 
 from transformers import pipeline
 
